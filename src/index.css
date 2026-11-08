@@ -1,0 +1,30 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-bg: #0e0f0c;
+  --color-surface: #1a1b18;
+  --color-line: #2a2c27;
+  --color-ink: #f2f2ee;
+  --color-mute: #a3a69d;
+  --color-lime: #c6f432;
+  --color-warn: #ff6a2b;
+  --color-info: #4da3ff;
+  --font-head: 'Space Grotesk', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+html,
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-head);
+  -webkit-tap-highlight-color: transparent;
+}
+
+input,
+textarea,
+select {
+  font-size: 16px; /* stops iOS zooming on focus */
+  background: var(--color-bg);
+  color: var(--color-ink);
+}
