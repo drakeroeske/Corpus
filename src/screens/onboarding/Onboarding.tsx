@@ -6,21 +6,32 @@ import { TEMPLATES } from '../../data/templates';
 import { loadDemoData } from '../../data/demo';
 import { LB_PER_KG, type Goal, type Units } from '../../engine';
 import { Button, Card, Label, NumberInput, Segmented, TextInput } from '../../components/ui';
+import { CornerLabels, Grain } from '../../components/riso';
+import { Logo, Orbit } from '../../components/diagrams';
+import { Pledge } from './Pledge';
 
-const STEPS = ['Profile', 'Goal', 'Units', 'Program'];
+const STEPS = ['Profile', 'Goal', 'Units', 'Program', 'Pledge'];
 
 export default function Onboarding() {
   const nav = useNavigate();
   const p = useProfile();
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [dest, setDest] = useState('/today');
 
   const finish = async (templateId: string | null) => {
     setBusy(true);
     if (templateId) await applyTemplate(templateId);
     else await db.programDays.clear();
-    await saveProfile({ onboarded: true, programStartDate: todayKey() });
-    nav(templateId ? '/today' : '/train/program', { replace: true });
+    await saveProfile({ programStartDate: todayKey() });
+    setDest(templateId ? '/today' : '/train/program');
+    setBusy(false);
+    setStep(4);
+  };
+
+  const done = async () => {
+    await saveProfile({ onboarded: true });
+    nav(dest, { replace: true });
   };
 
   const skip = async () => {
@@ -31,23 +42,30 @@ export default function Onboarding() {
 
   return (
     <div className="space-y-5">
+      <CornerLabels left="SPOTTER // SETUP" center={`STEP 0${step + 1} / 0${STEPS.length}`} right={step === 4 ? '[SIGN]' : '[NEW]'} />
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="h-4 w-4 bg-lime" />
-          <span className="text-xl font-bold tracking-wide">CORPUS</span>
+          <Logo size={36} />
+          <span className="display text-3xl">CORPUS</span>
         </div>
-        <Button variant="ghost" className="text-sm" onClick={skip} disabled={busy}>
-          Skip: load demo
-        </Button>
+        {step < 4 && (
+          <Button variant="ghost" className="text-xs" onClick={skip} disabled={busy}>
+            Skip: load demo
+          </Button>
+        )}
       </div>
-      <div>
-        <p className="text-sm text-mute">Every rep, meal, and night's sleep — connected.</p>
-        <div className="mt-3 flex gap-1">
-          {STEPS.map((s, i) => (
-            <div key={s} className={`h-1 flex-1 rounded ${i <= step ? 'bg-lime' : 'bg-line'}`} />
-          ))}
+      <div className="relative -mx-4 border-y-[3px] border-ink bg-signal px-4 py-4">
+        <Grain />
+        <div className="relative flex items-end justify-between gap-2">
+          <h1 className="display text-[clamp(48px,17vw,72px)]">{STEPS[step]}.</h1>
+          {step === 0 && <Orbit size={64} />}
         </div>
-        <h1 className="mt-3 text-3xl font-bold">{STEPS[step]}</h1>
+        <p className="relative mt-1 text-sm font-bold uppercase">Every rep, meal, and night's sleep — connected.</p>
+      </div>
+      <div className="flex gap-1">
+        {STEPS.map((s, i) => (
+          <div key={s} className={`h-3 flex-1 border-2 border-ink ${i <= step ? 'bg-ink' : ''}`} />
+        ))}
       </div>
 
       {step === 0 && (
@@ -96,9 +114,12 @@ export default function Onboarding() {
               ['recomp', 'Recomp', 'Maintenance, 2.2 g/kg protein'],
             ] as [Goal, string, string][]
           ).map(([g, label, sub]) => (
-            <Card key={g} onClick={() => saveProfile({ goal: g })} className={p.goal === g ? 'border-lime' : ''}>
-              <div className="font-bold">{label}</div>
-              <div className="text-sm text-mute">{sub}</div>
+            <Card key={g} onClick={() => saveProfile({ goal: g })} className={p.goal === g ? 'bg-ink text-page' : ''}>
+              <div className="font-bold uppercase">
+                {p.goal === g ? '[x] ' : '[ ] '}
+                {label}
+              </div>
+              <div className="text-xs uppercase">{sub}</div>
             </Card>
           ))}
         </div>
@@ -121,25 +142,27 @@ export default function Onboarding() {
         <div className="space-y-2">
           {TEMPLATES.map((t) => (
             <Card key={t.id} onClick={() => !busy && finish(t.id)}>
-              <div className="font-bold">{t.name}</div>
-              <div className="text-sm text-mute">{t.description}</div>
+              <div className="font-bold uppercase">{t.name}</div>
+              <div className="text-xs">{t.description}</div>
             </Card>
           ))}
           <Card onClick={() => !busy && finish(null)}>
-            <div className="font-bold">Build my own</div>
-            <div className="text-sm text-mute">Start empty and add days in the program builder.</div>
+            <div className="font-bold uppercase">Build my own</div>
+            <div className="text-xs">Start empty and add days in the program builder.</div>
           </Card>
         </div>
       )}
 
+      {step === 4 && <Pledge onDone={done} allowLater />}
+
       {step < 3 && (
         <div className="flex gap-2">
           {step > 0 && (
-            <Button variant="ghost" className="h-14 flex-1" onClick={() => setStep(step - 1)}>
+            <Button variant="ghost" className="min-h-14 flex-1" onClick={() => setStep(step - 1)}>
               Back
             </Button>
           )}
-          <Button className="h-14 flex-1 text-lg" onClick={() => setStep(step + 1)}>
+          <Button className="min-h-14 flex-1" onClick={() => setStep(step + 1)}>
             Next
           </Button>
         </div>

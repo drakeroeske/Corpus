@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../data/db';
 import { deleteSet, finishSession, logSet, saveDay, setSessionNotes, setSubstitution, useProfile, useSessions } from '../../data/repo';
-import { buildPlan, currentFatigue, hrvHistory, isBodyweight, type PlanItem } from '../../data/plan';
+import { buildPlan, currentFatigue, hrvHistory, isBodyweight, sessionNumber, type PlanItem } from '../../data/plan';
 import { EXERCISES } from '../../data/exercises';
 import {
   RECOVERING_PCT,
@@ -20,7 +20,8 @@ import {
   type WorkoutSession,
 } from '../../engine';
 import { useApp } from '../../store/app';
-import { Button, Card, Label, NumberInput, Segmented, Stepper, fmt } from '../../components/ui';
+import { Button, Label, NumberInput, PageHeader, Segmented, Stepper, fmt } from '../../components/ui';
+import { LabTable, NoteLine, Tag, pad3 } from '../../components/riso';
 
 export default function WorkoutLogger() {
   const { sessionId } = useParams();
@@ -38,7 +39,7 @@ export default function WorkoutLogger() {
   }, []);
 
   if (!session || !sessions || day === undefined || !checkins || !meals) return null;
-  if (day === null) return <p className="text-mute">This program day was deleted.</p>;
+  if (day === null) return <p className="text-ink">This program day was deleted.</p>;
 
   const checkin = checkins.find((c) => c.date === session.date);
   const plan = buildPlan(day, sessions, checkin, hrvHistory(checkins, session.date), profile, session.date, {
@@ -50,17 +51,21 @@ export default function WorkoutLogger() {
 
   return (
     <div>
-      <button className="-ml-1 mb-1 min-h-11 text-sm text-mute" onClick={() => nav('/train')}>
-        ‹ Train
-      </button>
-      <div className="flex items-baseline justify-between">
-        <h1 className="text-3xl font-bold">{day.name}</h1>
-        <span className="font-mono text-mute">{minutes} min</span>
+      {/* Read mid-set: no grain on this screen. */}
+      <PageHeader
+        title={day.name}
+        section="LOG"
+        grain={false}
+        back
+        status={`${day.name.toUpperCase()} [${session.finishedAt ? 'DONE' : 'LIVE'}]`}
+        sub={`SESSION ${pad3(sessionNumber(sessions, session.id) || sessions.length + 1)} · ${minutes} MIN`}
+      />
+      <div className="mb-4">
+        <NoteLine>
+          READINESS {plan.readiness.score} · {plan.readiness.reason}
+          {plan.phase && plan.phase.name !== 'Done' && ` · RETURN ${plan.phase.name} WK ${plan.phase.week}`}
+        </NoteLine>
       </div>
-      <p className="mt-1 mb-4 text-sm">
-        <span className="font-mono text-lime">{plan.readiness.score}</span> readiness · {plan.readiness.reason}
-        {plan.phase && plan.phase.name !== 'Done' && <span className="text-info"> · Return {plan.phase.name} wk {plan.phase.week}</span>}
-      </p>
 
       <div className="space-y-4">
         {plan.items.map((item, i) => (
@@ -83,11 +88,11 @@ export default function WorkoutLogger() {
         onBlur={(e) => e.target.value !== session.notes && setSessionNotes(session.id, e.target.value)}
         placeholder="Session notes (optional)"
         rows={2}
-        className="mt-4 w-full rounded-xl border border-line p-3"
+        className="mt-4 w-full border-2 border-ink p-3 font-mono"
       />
 
       <Button
-        className="mt-4 h-14 w-full text-lg"
+        className="mt-4 min-h-14 w-full text-base"
         disabled={!session.sets.length}
         onClick={async () => {
           await finishSession(session.id);
@@ -152,50 +157,60 @@ function ExerciseCard({
   ].filter(Boolean);
 
   return (
-    <Card className={done ? 'border-lime/60' : ''}>
-      <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-lg font-bold">{ex.name}</h2>
-        <span className="shrink-0 font-mono text-sm text-mute">
-          {working.length}/{pe.sets}
+    <section className="border-2 border-ink bg-page p-4">
+      <div className="flex items-start justify-between gap-2 border-b-[3px] border-ink pb-2">
+        <h2 className="font-mono text-base font-bold uppercase">{ex.name}</h2>
+        <span className="shrink-0 font-mono text-sm font-bold">
+          {done ? <Tag>DONE</Tag> : `SET ${Math.min(working.length + 1, pe.sets)}/${pe.sets}`}
         </span>
       </div>
-      {ex.id !== programmed.id && <div className="text-xs text-info">Swapped for {programmed.name}</div>}
-      <div className="font-mono text-sm">
-        {bw ? 'BW' : target.weight === null ? '?' : `${fmt(target.weight)} ${units}`} × {pe.repMin}–{pe.repMax}
-        <span className="text-mute">
-          {' '}
-          · aim {target.repGoal}
-          {effort.length ? ` · ${effort.join(' · ')}` : ''}
-        </span>
+      {ex.id !== programmed.id && <div className="mt-1 font-mono text-[10px] uppercase">[SWAP] for {programmed.name}</div>}
+      <div className="mt-3 font-mono text-[10px] font-bold uppercase">Target</div>
+      <div className="display text-[64px]">
+        {bw ? 'BW' : target.weight === null ? '?' : fmt(target.weight)} × {target.repGoal}
       </div>
-      <p className="mt-1 text-sm text-mute">{target.why}</p>
+      <div className="mt-1 font-mono text-xs uppercase">
+        {units} · range {pe.repMin}–{pe.repMax}
+        {effort.length ? ` · ${effort.join(' · ')}` : ''}
+      </div>
+      <div className="mt-2">
+        <NoteLine>{target.why}</NoteLine>
+      </div>
       {recovering.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1">
+        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
           {recovering.map((r) => (
-            <span key={r.m} className="rounded-full border border-warn px-2 py-0.5 text-xs text-warn">
-              {r.m} still recovering {r.pct}%
+            <span key={r.m} className="font-mono text-xs uppercase">
+              <Tag>RECOVERING</Tag> {r.m} {r.pct}%
             </span>
           ))}
         </div>
       )}
 
       {indexed.length > 0 && (
-        <ul className="mt-3">
-          {indexed.map(({ s, i }, n) => (
-            <li key={i} className="flex items-center justify-between font-mono text-sm">
-              <span className={s.isWarmup ? 'text-mute' : ''}>
-                <span className="text-mute">{s.isWarmup ? 'W' : n + 1 - indexed.slice(0, n).filter((x) => x.s.isWarmup).length}</span>{' '}
-                {bw ? 'BW' : fmt(s.weight)} × {s.reps}
-                {s.rir !== undefined && <span className="text-mute"> @{s.rir}</span>}
-              </span>
-              <button aria-label="Delete set" className="min-h-11 min-w-11 text-mute" onClick={() => deleteSet(session.id, i)}>
+        <LabTable
+          className="mt-3"
+          head={['Set', 'Load', 'Reps', 'RIR', '']}
+          align={['l', 'r', 'r', 'r', 'r']}
+          bold={[1, 2]}
+          rows={indexed.map(({ s, i }, n) => ({
+            key: String(i),
+            cells: [
+              s.isWarmup ? 'W' : String(n + 1 - indexed.slice(0, n).filter((x) => x.s.isWarmup).length).padStart(2, '0'),
+              bw ? 'BW' : fmt(s.weight),
+              s.reps,
+              s.rir ?? '–',
+              <button aria-label="Delete set" className="min-h-11 min-w-11 border-2 border-ink font-bold" onClick={() => deleteSet(session.id, i)}>
                 ×
-              </button>
-            </li>
-          ))}
-        </ul>
+              </button>,
+            ],
+          }))}
+        />
       )}
-      {pr !== null && <p className="mt-2 font-bold text-lime">New PR — e1RM {pr} {units}</p>}
+      {pr !== null && (
+        <p className="mt-2 font-mono text-sm font-bold uppercase">
+          <Tag signal>PR</Tag> New best — e1RM {pr} {units}
+        </p>
+      )}
 
       {weight === null ? (
         <div className="mt-3 flex gap-2">
@@ -221,17 +236,16 @@ function ExerciseCard({
             <Label>RIR (optional)</Label>
             <Segmented options={[0, 1, 2, 3, 4]} labels={['0', '1', '2', '3', '4+']} value={rir} onChange={setRir} allowClear />
           </div>
-          <div className="mt-3 flex gap-2">
-            <button
-              onClick={() => setWarm(!warm)}
-              className={`min-h-14 rounded-xl border px-3 text-sm ${warm ? 'border-info text-info' : 'border-line text-mute'}`}
-            >
-              Warm-up
-            </button>
-            <Button className="h-14 flex-1 text-lg" onClick={log}>
-              {warm ? 'Log warm-up' : done ? 'Log extra set' : 'Log set'}
-            </Button>
-          </div>
+          <button
+            aria-pressed={warm}
+            onClick={() => setWarm(!warm)}
+            className={`mt-3 min-h-11 w-full border-2 border-ink font-mono text-xs font-bold uppercase ${warm ? 'bg-ink text-page' : ''}`}
+          >
+            {warm ? '[x] Warm-up set' : '[ ] Warm-up set'}
+          </button>
+          <Button className="mt-2 min-h-16 w-full text-lg" onClick={log}>
+            {warm ? 'Log warm-up' : done ? 'Log extra set' : 'Log set'}
+          </Button>
         </>
       )}
 
@@ -253,15 +267,8 @@ function ExerciseCard({
 
       {tool === 'warmup' && weight !== null && (
         <div className="mt-2 space-y-1 font-mono text-sm">
-          {warmupSets(weight, units, usesBar).map((w) => (
-            <div key={w.label} className="flex justify-between">
-              <span className="text-mute">{w.label}</span>
-              <span>
-                {fmt(w.weight)} × {w.reps}
-              </span>
-            </div>
-          ))}
-          <div className="text-xs text-mute">Tap Warm-up before logging these so they don't count as work sets.</div>
+          <LabTable head={['Warm-up', 'Load × reps']} align={['l', 'r']} rows={warmupSets(weight, units, usesBar).map((w) => ({ key: w.label, cells: [w.label, `${fmt(w.weight)} × ${w.reps}`] }))} />
+          <div className="text-[10px] uppercase">Tap Warm-up before logging these so they don't count as work sets.</div>
         </div>
       )}
       {tool === 'plates' && weight !== null && <PlateView total={weight} units={units} />}
@@ -275,26 +282,26 @@ function ExerciseCard({
           {subs.map((o) => (
             <button
               key={o.id}
-              className={`flex min-h-11 w-full items-center justify-between rounded-lg px-2 text-left ${o.id === ex.id ? 'text-lime' : ''}`}
+              className={`flex min-h-11 w-full items-center justify-between border-t border-dashed border-ink px-2 text-left font-mono text-sm uppercase ${o.id === ex.id ? 'bg-ink text-page' : ''}`}
               onClick={() => {
                 setSubstitution(session.id, programmed.id, o.id);
                 setTool(null);
               }}
             >
               <span>{o.name}</span>
-              <span className="text-xs text-mute">{o.equipment}</span>
+              <span className="text-[10px]">[{o.equipment}]</span>
             </button>
           ))}
-          {!subs.length && <p className="text-sm text-mute">No close substitutes in the library.</p>}
+          {!subs.length && <p className="text-sm text-ink">No close substitutes in the library.</p>}
         </div>
       )}
-    </Card>
+    </section>
   );
 }
 
 function ToolButton({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} className={`min-h-11 flex-1 rounded-lg border px-2 text-xs ${on ? 'border-lime text-lime' : 'border-line text-mute'}`}>
+    <button onClick={onClick} aria-pressed={on} className={`min-h-11 flex-1 border-2 border-ink px-2 font-mono text-[11px] font-bold uppercase ${on ? 'bg-ink text-page' : ''}`}>
       {children}
     </button>
   );
@@ -306,9 +313,9 @@ function PlateView({ total, units }: { total: number; units: 'lb' | 'kg' }) {
     <div className="mt-2 font-mono text-sm">
       <div>
         Per side: {plates.length ? plates.join(' + ') : 'empty bar'}
-        {remainder > 0 && <span className="text-warn"> (+{remainder} unmatched)</span>}
+        {remainder > 0 && <span className="text-ink font-bold"> (+{remainder} unmatched)</span>}
       </div>
-      <div className="text-xs text-mute">
+      <div className="text-xs text-ink">
         Bar {units === 'lb' ? 45 : 20} {units}
       </div>
     </div>

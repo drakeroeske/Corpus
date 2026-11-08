@@ -3,11 +3,15 @@
 import { ALL_TABLES, db, todayKey } from './db';
 import { TEMPLATES } from './templates';
 import { exerciseName } from './exercises';
+import { LOCAL_FOODS } from '../services/foodSource';
 import { dayForDate, exById, historyFor, isBodyweight, sessionStats } from './plan';
 import {
   MUSCLES,
   addDays,
   nextTarget,
+  nutrientsFor,
+  type Food,
+  type ServingUnit,
   type CheckIn,
   type Client,
   type Comment,
@@ -34,13 +38,26 @@ const at = (date: string, h: number, m = 0) => {
   return new Date(y, mo - 1, d, h, m).getTime();
 };
 
-const MEALS = {
-  breakfast: { name: 'Greek yogurt bowl', kcal: 650, protein: 38, carbs: 80, fat: 16, fav: true, time: '07:30' },
-  lunch: { name: 'Chicken rice bowl', kcal: 850, protein: 52, carbs: 105, fat: 20, fav: true, time: '12:30' },
-  shake: { name: 'Protein shake', kcal: 160, protein: 30, carbs: 4, fat: 2, fav: true, time: '16:00' },
-  salmon: { name: 'Salmon, potatoes, greens', kcal: 950, protein: 45, carbs: 90, fat: 38, fav: false, time: '19:30' },
-  burrito: { name: 'Beef burrito', kcal: 980, protein: 42, carbs: 110, fat: 36, fav: false, time: '19:45' },
-  snack: { name: 'Bagel + peanut butter', kcal: 480, protein: 15, carbs: 60, fat: 18, fav: false, time: '21:00' },
+// Diary staples: [food name from foods.json, quantity, unit]
+type Pick = [string, number, ServingUnit];
+const STAPLES: Record<string, { slot: number; time: string; items: Pick[] }> = {
+  oats: { slot: 0, time: '07:30', items: [['Oats, rolled, dry', 2, 'serving'], ['Whey protein powder', 1, 'serving'], ['Banana', 1, 'piece'], ['Milk, 2%', 1, 'serving']] },
+  eggs: { slot: 0, time: '08:00', items: [['Egg, whole', 3, 'piece'], ['Sourdough bread', 2, 'piece'], ['Avocado', 0.5, 'piece']] },
+  chickenRice: { slot: 1, time: '12:30', items: [['Chicken breast, cooked', 200, 'g'], ['Jasmine rice, cooked', 300, 'g'], ['Broccoli', 1, 'serving'], ['Olive oil', 1, 'serving']] },
+  sandwich: { slot: 1, time: '12:45', items: [['Bread, whole wheat', 2, 'piece'], ['Turkey breast, deli', 100, 'g'], ['Cheddar cheese', 1, 'serving'], ['Potato chips', 1, 'serving']] },
+  yogurt: { slot: 3, time: '16:00', items: [['Greek yogurt, 2% plain', 1, 'serving'], ['Blueberries', 0.5, 'serving'], ['Granola', 30, 'g'], ['Banana', 1, 'piece']] },
+  shake: { slot: 3, time: '16:00', items: [['Whey protein powder', 1, 'serving'], ['Almonds', 1, 'serving']] },
+  salmon: { slot: 2, time: '19:30', items: [['Salmon, cooked', 1, 'serving'], ['Sweet potato, baked', 1, 'piece'], ['Green beans', 1, 'serving'], ['Olive oil', 0.5, 'serving']] },
+  beefPasta: { slot: 2, time: '19:30', items: [['Ground beef 90% lean, cooked', 150, 'g'], ['Pasta, cooked', 2, 'serving'], ['Marinara sauce', 1, 'serving'], ['Parmesan, grated', 2, 'serving']] },
+  pizza: { slot: 2, time: '20:00', items: [['Pizza, cheese', 3, 'piece'], ['Cola', 1, 'serving']] },
+  burrito: { slot: 2, time: '19:45', items: [['Burrito, beef and bean', 1, 'piece'], ['Salsa', 2, 'serving']] },
+  bagel: { slot: 3, time: '21:00', items: [['Bagel, plain', 1, 'piece'], ['Peanut butter', 1, 'serving']] },
+  iceCream: { slot: 3, time: '21:30', items: [['Ice cream, vanilla', 2, 'serving']] },
+};
+const foodByName = (n: string) => {
+  const f = LOCAL_FOODS.find((x) => x.name === n);
+  if (!f) throw new Error('Demo food missing: ' + n);
+  return f;
 };
 
 export async function loadDemoData(): Promise<void> {
@@ -122,16 +139,36 @@ export async function loadDemoData(): Promise<void> {
     });
   }
 
-  // ---------- Meals ----------
+  // ---------- Food diary ----------
+  // Hit days ≈ 3000 kcal / 190 g protein, missed days ≈ 2200 kcal / 100 g. With the +0.15 kg/week trend this
+  // puts adaptive maintenance around 2600–2800 kcal, under the engine's ~3050 muscle-gain target.
   const meals: Meal[] = [];
+  const used = new Map<string, number>();
   let n = 0;
   for (let i = 0; i <= 56; i++) {
     const date = addDays(start, i);
     const recent = i >= 50;
     const hit = recent ? [50, 52, 55].includes(i) : r() < 0.8;
-    const list = date === today ? [MEALS.breakfast, MEALS.lunch] : hit ? [MEALS.breakfast, MEALS.lunch, MEALS.shake, MEALS.salmon, MEALS.snack] : [MEALS.breakfast, MEALS.lunch, MEALS.burrito, MEALS.snack];
-    for (const m of list) meals.push({ id: `demo-m-${n++}`, date, time: m.time, name: m.name, kcal: m.kcal, protein: m.protein, carbs: m.carbs, fat: m.fat, isFavorite: m.fav });
+    const plan = date === today
+      ? ['oats', 'chickenRice']
+      : hit
+        ? [r() < 0.7 ? 'oats' : 'eggs', 'chickenRice', r() < 0.6 ? 'yogurt' : 'shake', r() < 0.6 ? 'salmon' : 'beefPasta', 'bagel']
+        : ['eggs', 'sandwich', r() < 0.5 ? 'pizza' : 'burrito', 'iceCream'];
+    for (const key of plan) {
+      const st = STAPLES[key];
+      for (const [name, qty, unit] of st.items) {
+        const f = foodByName(name);
+        used.set(f.id, (used.get(f.id) ?? 0) + 1);
+        meals.push({ id: `demo-m-${n++}`, date, time: st.time, slot: st.slot, name: f.name, foodId: f.id, qty, unit, isFavorite: false, ...nutrientsFor(f, qty, unit) });
+      }
+    }
   }
+  const foods: Food[] = [...used].map(([id, c]) => ({ ...LOCAL_FOODS.find((f) => f.id === id)!, useCount: c, lastUsed: Date.now() - 86_400_000 }));
+  const water = Array.from({ length: 57 }, (_, i) => ({ date: addDays(start, i), ml: addDays(start, i) === today ? 750 : 1500 + Math.round(r() * 8) * 250 }));
+  const oatsMeal = STAPLES.oats.items.map(([name, qty, unit]) => {
+    const f = foodByName(name);
+    return { name: f.name, foodId: f.id, qty, unit, ...nutrientsFor(f, qty, unit) };
+  });
 
   // ---------- Social ----------
   const spotters: Spotter[] = [
@@ -199,6 +236,9 @@ export async function loadDemoData(): Promise<void> {
     await db.sessions.bulkAdd(sessions);
     await db.checkins.bulkAdd(checkins);
     await db.meals.bulkAdd(meals);
+    await db.foods.bulkAdd(foods);
+    await db.water.bulkAdd(water);
+    await db.savedMeals.add({ id: 'sm-1', name: 'Oats + whey breakfast', items: oatsMeal });
     await db.experiments.add({ id: 'exp-1', type: 'creatine', name: 'Creatine 5 g daily', question: 'Took 5 g creatine today?', startDate: expStart, baselineDays: 14, lengthDays: 28, status: 'testing' });
     await db.measurements.bulkAdd([
       { id: 'ms-1', date: start, waistCm: 84, chestCm: 102, armCm: 37, thighCm: 58, note: 'Start of block' },

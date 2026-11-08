@@ -1,5 +1,5 @@
 // Builds the Weekly Lab Report from stored data.
-import { addDays, e1rm, mean, weeklyInsights, type CheckIn, type Meal, type Muscle, type ProgramDay, type UserProfile, type WorkoutSession } from '../engine';
+import { addDays, carbTimingInsight, daysBetween, e1rm, mean, weeklyInsights, type CheckIn, type Meal, type Muscle, type ProgramDay, type UserProfile, type WorkoutSession } from '../engine';
 import { exById, plateauAlerts, proteinTarget, readinessSeries, sessionStats, weeklySetsFor, dayForDate } from './plan';
 
 export interface WeeklyReport {
@@ -47,6 +47,8 @@ export function weeklyReport(
   let daysLogged = 0;
   let proteinHit = 0;
   let kcalOnTarget = 0;
+  let kcalSum = 0;
+  let kcalTargetSum = 0;
   for (let i = 0; i < 7; i++) {
     const date = addDays(from, i);
     const dm = meals.filter((m) => m.date === date);
@@ -55,6 +57,8 @@ export function weeklyReport(
     const t = proteinTarget(profile, !!dayForDate(days, date));
     if (dm.reduce((a, m) => a + m.protein, 0) >= t.protein) proteinHit++;
     const k = dm.reduce((a, m) => a + m.kcal, 0);
+    kcalSum += k;
+    kcalTargetSum += t.kcal;
     if (Math.abs(k - t.kcal) <= t.kcal * 0.1) kcalOnTarget++;
   }
 
@@ -75,9 +79,7 @@ export function weeklyReport(
 
   // Sleep vs performance over 4 weeks.
   const recent = sessions.filter((s) => s.finishedAt && s.date >= addDays(today, -27) && s.date <= today);
-  const sessionsBySleep = recent
-    .map((s) => {
-      const sleep = checkins.find((c) => c.date === s.date)?.sleepHours;
+  const perfOf = (s: WorkoutSession) => {
       const deltas: number[] = [];
       for (const id of new Set(s.sets.map((x) => x.exerciseId))) {
         const now = bestIn([s], id, s.date, s.date);
@@ -88,9 +90,30 @@ export function weeklyReport(
           .find((v) => v !== null);
         if (now && prev) deltas.push(((now - prev) / prev) * 100);
       }
-      return sleep !== undefined && deltas.length ? { sleep, perf: mean(deltas) } : null;
+      return deltas.length ? mean(deltas) : null;
+  };
+  const sessionsBySleep = recent
+    .map((s) => {
+      const sleep = checkins.find((c) => c.date === s.date)?.sleepHours;
+      const perf = perfOf(s);
+      return sleep !== undefined && perf !== null ? { sleep, perf } : null;
     })
     .filter((x): x is { sleep: number; perf: number } => !!x);
+
+  // Pre-workout carbs (3 h before start) vs performance, all history; suggestive only.
+  const firstMeal = meals.reduce((a, m) => (m.date < a ? m.date : a), today);
+  const hhmm = (t: number) => { const d = new Date(t); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+  const carbSessions = sessions
+    .filter((s) => s.finishedAt && s.date <= today)
+    .map((s) => {
+      const end = hhmm(s.startedAt);
+      const start = hhmm(s.startedAt - 3 * 3_600_000);
+      const preCarbs = meals.filter((m) => m.date === s.date && m.time >= start && m.time <= end).reduce((a, m) => a + m.carbs, 0);
+      const perf = perfOf(s);
+      return perf !== null ? { preCarbs, perf } : null;
+    })
+    .filter((x): x is { preCarbs: number; perf: number } => !!x);
+  const carbTiming = carbTimingInsight(carbSessions, daysBetween(firstMeal, today) / 7);
 
   const { insights, focus } = weeklyInsights({
     sessionsDone: week.length,
@@ -98,10 +121,12 @@ export function weeklyReport(
     sleepHours: sleeps,
     proteinDays: { logged: daysLogged, hit: proteinHit },
     e1rmChanges: changes.map((c) => ({ name: c.name, pct: c.pct, isPress: ['hpush', 'vpush'].includes(exById(c.exerciseId).pattern) })),
-    plateaued: plateauAlerts(days, sessions, checkins, today).map((p) => exById(p.exerciseId).name),
+    plateaued: plateauAlerts(days, sessions, checkins, today, { meals, profile, days }).map((p) => exById(p.exerciseId).name),
     underVolume,
     sessionsBySleep,
     avgReadiness,
+    kcal: { logged: daysLogged, avg: daysLogged ? kcalSum / daysLogged : 0, target: daysLogged ? kcalTargetSum / daysLogged : 0 },
+    carbTiming,
   });
 
   return {

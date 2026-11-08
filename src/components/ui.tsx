@@ -1,10 +1,12 @@
-import type { ReactNode } from 'react';
+// Shared UI kit, Riso Lab style: square corners, 2px ink borders, mono labels, display titles.
+import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { color } from '../theme/tokens';
+import { CornerLabels, Grain, useHeaderMeta, useSurface } from './riso';
 
-export function Card({ children, className = '', onClick }: { children: ReactNode; className?: string; onClick?: () => void }) {
+export function Card({ children, className = '', onClick, grain }: { children: ReactNode; className?: string; onClick?: () => void; grain?: boolean }) {
   return (
-    <div onClick={onClick} className={`rounded-2xl border border-line bg-surface p-4 ${onClick ? 'cursor-pointer active:opacity-80' : ''} ${className}`}>
+    <div onClick={onClick} className={`relative border-2 border-ink bg-page p-4 ${onClick ? 'cursor-pointer active:bg-ink active:text-page' : ''} ${className}`}>
+      {grain && <Grain />}
       {children}
     </div>
   );
@@ -20,23 +22,25 @@ export function Button({
 }: {
   children: ReactNode;
   onClick?: () => void;
-  variant?: 'primary' | 'ghost' | 'danger';
+  variant?: 'primary' | 'ghost' | 'danger' | 'social';
   className?: string;
   disabled?: boolean;
   type?: 'button' | 'submit';
 }) {
   const style =
     variant === 'primary'
-      ? 'bg-lime text-bg font-bold'
-      : variant === 'danger'
-        ? 'border border-warn text-warn'
-        : 'border border-line text-ink';
+      ? 'bg-ink text-page border-ink active:bg-ink-deep'
+      : variant === 'social'
+        ? 'bg-signal text-ink border-ink'
+        : variant === 'danger'
+          ? 'border-ink border-dashed text-ink'
+          : 'border-ink text-ink active:bg-ink active:text-page';
   return (
     <button
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`min-h-11 rounded-xl px-4 text-base active:opacity-70 disabled:opacity-40 ${style} ${className}`}
+      className={`min-h-11 border-2 px-4 font-mono text-sm font-bold uppercase tracking-wide disabled:bg-transparent disabled:text-ink ${style} ${className}`}
     >
       {children}
     </button>
@@ -44,7 +48,7 @@ export function Button({
 }
 
 export function Label({ children }: { children: ReactNode }) {
-  return <div className="mb-1 text-xs uppercase tracking-wide text-mute">{children}</div>;
+  return <div className="mb-1 font-mono text-[10px] font-bold uppercase tracking-wide">{children}</div>;
 }
 
 export function Stepper({
@@ -63,18 +67,32 @@ export function Stepper({
   suffix?: string;
 }) {
   const set = (v: number) => onChange(Math.max(min, Math.round(v * 100) / 100));
+  const [text, setText] = useState(fmt(value));
+  useEffect(() => setText(fmt(value)), [value]);
   return (
     <div className="min-w-0 flex-1">
       {label && <Label>{label}</Label>}
-      <div className="flex items-center rounded-xl border border-line">
-        <button aria-label={`Decrease ${label ?? ''}`} className="h-12 w-12 shrink-0 text-2xl active:bg-line" onClick={() => set(value - step)}>
+      <div className="flex items-center border-2 border-ink">
+        <button aria-label={`Decrease ${label ?? ''}`} className="h-14 w-14 shrink-0 border-r-2 border-ink text-3xl active:bg-ink active:text-page" onClick={() => set(value - step)}>
           −
         </button>
-        <div className="flex-1 truncate text-center font-mono text-xl">
-          {fmt(value)}
-          {suffix && <span className="ml-1 text-sm text-mute">{suffix}</span>}
-        </div>
-        <button aria-label={`Increase ${label ?? ''}`} className="h-12 w-12 shrink-0 text-2xl active:bg-line" onClick={() => set(value + step)}>
+        <label className="flex min-w-0 flex-1 items-baseline justify-center">
+          <input
+            inputMode="decimal"
+            aria-label={label}
+            value={text}
+            onFocus={(e) => e.target.select()}
+            onChange={(e) => {
+              setText(e.target.value);
+              const v = parseFloat(e.target.value.replace(',', '.'));
+              if (Number.isFinite(v)) onChange(Math.max(min, v));
+            }}
+            onBlur={() => setText(fmt(value))}
+            className="w-full min-w-0 bg-transparent text-center font-mono text-[32px] leading-none font-bold outline-none"
+          />
+          {suffix && <span className="font-mono text-sm">{suffix}</span>}
+        </label>
+        <button aria-label={`Increase ${label ?? ''}`} className="h-14 w-14 shrink-0 border-l-2 border-ink text-3xl active:bg-ink active:text-page" onClick={() => set(value + step)}>
           +
         </button>
       </div>
@@ -97,16 +115,15 @@ export function Segmented<T extends string | number>({
   labels?: string[];
 }) {
   return (
-    <div className="flex gap-1.5">
+    <div className="flex border-2 border-ink">
       {options.map((o, i) => {
         const on = o === value;
         return (
           <button
             key={String(o)}
+            aria-pressed={on}
             onClick={() => onChange(on && allowClear ? undefined : o)}
-            className={`min-h-11 flex-1 rounded-lg border px-1 text-sm ${
-              on ? 'border-lime bg-lime font-bold text-bg' : 'border-line text-ink'
-            } ${typeof o === 'number' ? 'font-mono' : ''}`}
+            className={`min-h-11 flex-1 px-1 font-mono text-xs font-bold uppercase ${i ? 'border-l-2 border-ink' : ''} ${on ? 'bg-ink text-page' : 'text-ink'}`}
           >
             {labels?.[i] ?? String(o)}
           </button>
@@ -116,7 +133,7 @@ export function Segmented<T extends string | number>({
   );
 }
 
-/** Circular progress ring with a number in the middle. */
+/** Circular meter, square caps, ink only. */
 export function Ring({
   value,
   max,
@@ -124,7 +141,6 @@ export function Ring({
   stroke = 8,
   label,
   center,
-  ringColor = color.lime,
 }: {
   value: number;
   max: number;
@@ -132,7 +148,6 @@ export function Ring({
   stroke?: number;
   label?: string;
   center?: ReactNode;
-  ringColor?: string;
 }) {
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
@@ -140,34 +155,25 @@ export function Ring({
   return (
     <div className="flex flex-col items-center">
       <div className="relative" style={{ width: size, height: size }}>
-        <svg width={size} height={size} className="-rotate-90">
-          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color.border} strokeWidth={stroke} />
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={r}
-            fill="none"
-            stroke={ringColor}
-            strokeWidth={stroke}
-            strokeDasharray={`${c * frac} ${c}`}
-            strokeLinecap="round"
-          />
+        <svg width={size} height={size} className="-rotate-90" aria-hidden>
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth={1} strokeDasharray="2 3" />
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth={stroke} strokeDasharray={`${c * frac} ${c}`} />
         </svg>
-        <div className="absolute inset-0 flex items-center justify-center font-mono">{center ?? Math.round(value)}</div>
+        <div className="absolute inset-0 flex items-center justify-center font-mono font-bold">{center ?? Math.round(value)}</div>
       </div>
-      {label && <div className="mt-1 text-xs text-mute">{label}</div>}
+      {label && <div className="mt-1 font-mono text-[10px] uppercase">{label}</div>}
     </div>
   );
 }
 
-/** Full-screen bottom sheet with a title and close button. */
+/** Full-screen sheet: page colour, 3px top rule, display title. */
 export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
-    <div className="fixed inset-0 z-30 flex flex-col bg-black/70">
-      <div className="mx-auto mt-8 flex w-full max-w-[480px] flex-1 flex-col overflow-hidden rounded-t-3xl border border-line bg-bg">
-        <div className="flex items-center justify-between border-b border-line px-4 py-2">
-          <h2 className="text-lg font-bold">{title}</h2>
-          <button className="min-h-11 min-w-11 text-mute" onClick={onClose}>
+    <div className="fixed inset-0 z-30 flex flex-col bg-page">
+      <div className="mx-auto flex w-full max-w-[480px] flex-1 flex-col overflow-hidden border-t-[3px] border-ink bg-page">
+        <div className="flex items-end justify-between gap-2 border-b-2 border-ink px-4 py-3">
+          <h2 className="display text-4xl">{title}.</h2>
+          <button className="min-h-11 min-w-11 border-2 border-ink px-3 font-mono text-xs font-bold uppercase" onClick={onClose}>
             Close
           </button>
         </div>
@@ -177,33 +183,56 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
   );
 }
 
-export function PageHeader({ title, sub, back, right }: { title: string; sub?: ReactNode; back?: boolean; right?: ReactNode }) {
+/** Screen header: corner metadata labels, huge display title with a full stop, optional sub line. */
+export function PageHeader({
+  title,
+  sub,
+  back,
+  right,
+  status,
+  section,
+  grain = true,
+}: {
+  title: string;
+  sub?: ReactNode;
+  back?: boolean;
+  right?: ReactNode;
+  status?: string;
+  section?: string;
+  grain?: boolean;
+}) {
   const nav = useNavigate();
+  const style = useSurface();
+  const meta = useHeaderMeta();
+  const t = title.toUpperCase().replace(/[.!?]$/, '');
   return (
-    <div className="mb-4">
+    <div className="relative -mx-4 mb-4 border-b-[3px] border-ink px-4 pt-1 pb-3">
+      {grain && <Grain />}
+      <CornerLabels left={`${style === 'riso' ? 'SPOTTER' : 'CORPUS'} // ${section ?? (style === 'riso' ? 'FEED' : 'ENGINE')}`} center={meta.center} right={status ?? meta.status} />
       {back && (
-        <button className="-ml-1 mb-1 min-h-11 text-sm text-mute" onClick={() => nav(-1)}>
-          ‹ Back
+        <button className="relative mt-2 min-h-11 border-2 border-ink px-3 font-mono text-xs font-bold uppercase" onClick={() => nav(-1)}>
+          ← Back
         </button>
       )}
-      <div className="flex items-start justify-between gap-2">
-        <h1 className="text-3xl font-bold">{title}</h1>
-        {right}
+      <div className="relative mt-3 flex items-end justify-between gap-2">
+        <h1 className="display min-w-0 text-[clamp(44px,17vw,72px)] break-words">{t}.</h1>
+        {right && <div className="shrink-0 pb-1">{right}</div>}
       </div>
-      {sub && <div className="mt-1 text-sm text-mute">{sub}</div>}
+      {sub && <div className="relative mt-2 font-mono text-xs uppercase">{sub}</div>}
     </div>
   );
 }
 
-/** Horizontal tab switcher inside a screen. */
+/** Square tab switcher inside a screen. */
 export function SubTabs<T extends string>({ tabs, value, onChange }: { tabs: { id: T; label: string }[]; value: T; onChange: (t: T) => void }) {
   return (
-    <div className="-mx-4 mb-4 flex gap-1 overflow-x-auto px-4">
+    <div className="-mx-4 mb-4 flex gap-1.5 overflow-x-auto px-4">
       {tabs.map((t) => (
         <button
           key={t.id}
+          aria-pressed={t.id === value}
           onClick={() => onChange(t.id)}
-          className={`min-h-11 shrink-0 rounded-full border px-4 text-sm ${t.id === value ? 'border-lime text-lime' : 'border-line text-mute'}`}
+          className={`min-h-11 shrink-0 border-2 border-ink px-3 font-mono text-xs font-bold uppercase ${t.id === value ? 'bg-ink text-page' : 'text-ink'}`}
         >
           {t.label}
         </button>
@@ -232,13 +261,13 @@ export function NumberInput({
         const v = parseFloat(e.target.value);
         onChange(Number.isFinite(v) ? v : undefined);
       }}
-      className={`min-h-11 w-full rounded-xl border border-line px-3 font-mono ${className}`}
+      className={`min-h-11 w-full border-2 border-ink px-3 font-mono ${className}`}
     />
   );
 }
 
 export const TextInput = (p: React.InputHTMLAttributes<HTMLInputElement>) => (
-  <input {...p} className={`min-h-11 w-full rounded-xl border border-line px-3 ${p.className ?? ''}`} />
+  <input {...p} className={`min-h-11 w-full border-2 border-ink px-3 font-mono ${p.className ?? ''}`} />
 );
 
 export function fmt(n: number | null | undefined, digits = 1): string {

@@ -1,25 +1,30 @@
-// Design tokens for use in JS (charts, canvas). CSS uses the same values in index.css.
+// Riso Lab design tokens for JS (charts, canvas, SVG). CSS uses the same values in index.css.
 export const color = {
-  bg: '#0E0F0C',
-  surface: '#1A1B18',
-  border: '#2A2C27',
-  text: '#F2F2EE',
-  muted: '#A3A69D',
-  lime: '#C6F432',
-  warn: '#FF6A2B',
-  info: '#4DA3FF',
+  paper: '#F2F1EC',
+  bone: '#ECE8DF',
+  ink: '#111111', // lab ink
+  black: '#111111',
+  cobalt: '#2B3FD6', // riso ink
+  cobaltDeep: '#1A2A9E',
+  signal: '#E9A6D8', // pink: PRs and social moments only; never text
 };
+
+export type SurfaceStyle = 'lab' | 'riso';
+
+export const surface = {
+  lab: { ink: color.black, page: color.paper, display: "'Anton', Impact, sans-serif" },
+  riso: { ink: color.cobalt, page: color.bone, display: "'Archivo Black', 'Arial Black', sans-serif" },
+} as const;
 
 export const font = {
-  head: "'Space Grotesk', system-ui, sans-serif",
-  mono: "'JetBrains Mono', ui-monospace, monospace",
+  mono: "'Space Mono', ui-monospace, monospace",
+  anton: "'Anton', Impact, sans-serif",
+  archivo: "'Archivo Black', 'Arial Black', sans-serif",
 };
 
-/** Lime (0) → orange (1) for fatigue colouring. */
-export function fatigueColor(t: number): string {
-  const k = Math.max(0, Math.min(1, t));
-  const a = [0xc6, 0xf4, 0x32];
-  const b = [0xff, 0x6a, 0x2b];
-  const mix = a.map((v, i) => Math.round(v + (b[i] - v) * k));
-  return `rgb(${mix.join(',')})`;
-}
+/** Chart styling shared by all Recharts figures (lab ink). */
+export const chart = {
+  tick: { fill: color.black, fontSize: 10, fontFamily: font.mono },
+  grid: { stroke: 'rgba(17,17,17,0.2)', strokeDasharray: '3 3' }, // the only allowed tint
+  tooltip: { background: color.paper, border: `2px solid ${color.black}`, borderRadius: 0, fontFamily: font.mono, fontSize: 12 },
+};

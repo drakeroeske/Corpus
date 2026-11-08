@@ -5,7 +5,8 @@ import { saveProfile, useData } from '../../data/repo';
 import { e1rmSeries, exById } from '../../data/plan';
 import { dayNum, projectGoal } from '../../engine';
 import { Card, Label, NumberInput, prettyDate } from '../../components/ui';
-import { color, font } from '../../theme/tokens';
+import { chart as cs, color } from '../../theme/tokens';
+import { FigCaption, SquareDot } from '../../components/riso';
 
 const toDate = (n: number) => new Date(n * 86_400_000).toISOString().slice(0, 10);
 
@@ -22,7 +23,7 @@ export default function Strength() {
     .map((id) => ({ id, n: e1rmSeries(sessions, id).length }))
     .filter((x) => x.n >= 2)
     .sort((a, b) => b.n - a.n);
-  if (!ids.length) return <p className="text-mute">Log at least two sessions of a lift to see its trend.</p>;
+  if (!ids.length) return <p className="text-ink">Log at least two sessions of a lift to see its trend.</p>;
 
   const id = picked && ids.some((x) => x.id === picked) ? picked : ids[0].id;
   const series = e1rmSeries(sessions, id);
@@ -43,7 +44,7 @@ export default function Strength() {
       <select
         value={id}
         onChange={(e) => setPicked(e.target.value)}
-        className="min-h-11 w-full rounded-xl border border-line px-3"
+        className="min-h-11 w-full border-2 border-ink px-3"
       >
         {ids.map((x) => (
           <option key={x.id} value={x.id}>
@@ -53,26 +54,21 @@ export default function Strength() {
       </select>
 
       <Card>
-        <div className="mb-2 flex items-baseline justify-between">
-          <span className="font-bold">e1RM</span>
-          <span className="font-mono">
-            {latest} {profile.units}
-          </span>
-        </div>
+        <FigCaption n={2} title={`e1RM / ${exById(id).name}`} stat={`NOW ${latest} ${profile.units.toUpperCase()}`} />
         <div className="h-56">
           <ResponsiveContainer>
             <LineChart data={chart} margin={{ left: -20, right: 8, top: 8 }}>
-              <CartesianGrid stroke={color.border} vertical={false} />
-              <XAxis dataKey="x" type="number" domain={['dataMin', 'dataMax']} tickFormatter={(n) => toDate(n).slice(5)} stroke={color.muted} fontSize={10} fontFamily={font.mono} />
-              <YAxis domain={['auto', 'auto']} stroke={color.muted} fontSize={10} fontFamily={font.mono} />
-              <Tooltip labelFormatter={(n) => prettyDate(toDate(Number(n)))} contentStyle={{ background: color.surface, border: `1px solid ${color.border}` }} />
-              {goal && <ReferenceLine y={goal} stroke={color.info} strokeDasharray="4 4" />}
-              <Line dataKey="e1rm" stroke={color.lime} strokeWidth={2} dot={{ r: 3 }} connectNulls isAnimationActive={false} />
-              <Line dataKey="proj" stroke={color.info} strokeDasharray="5 5" dot={false} connectNulls isAnimationActive={false} />
+              <CartesianGrid {...cs.grid} vertical={false} />
+              <XAxis dataKey="x" type="number" domain={['dataMin', 'dataMax']} tickFormatter={(n) => toDate(n).slice(5)} stroke={color.ink} tick={cs.tick} />
+              <YAxis domain={['auto', 'auto']} stroke={color.ink} tick={cs.tick} />
+              <Tooltip labelFormatter={(n) => prettyDate(toDate(Number(n)))} contentStyle={cs.tooltip} />
+              {goal && <ReferenceLine y={goal} stroke={color.ink} strokeWidth={1} strokeDasharray="2 4" />}
+              <Line dataKey="e1rm" stroke={color.ink} strokeWidth={2} dot={<SquareDot />} connectNulls isAnimationActive={false} />
+              <Line dataKey="proj" stroke={color.ink} strokeWidth={2} strokeDasharray="6 4" dot={false} connectNulls isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
-        <div className="mt-1 text-xs text-mute">Dashed blue = projection from the last 6 weeks</div>
+        <div className="mt-1 text-xs text-ink">Solid = e1RM. Dashed = projection from the last 6 weeks. Dotted = goal.</div>
       </Card>
 
       <Card className="space-y-3">
@@ -99,17 +95,17 @@ export default function Strength() {
               <div>
                 {proj.projectedDate ? (
                   <>
-                    Projected to reach <span className="font-mono">{goal}</span> by <span className="font-bold text-lime">{prettyDate(proj.projectedDate, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                    Projected to reach <span className="font-mono">{goal}</span> by <span className="font-bold text-ink font-bold">{prettyDate(proj.projectedDate, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                   </>
                 ) : (
                   'Not trending toward this goal yet.'
                 )}
               </div>
             )}
-            <div className="mt-1 text-xs text-mute">Estimate{sleep8h || proteinDaily ? ' (what-ifs add +10% each)' : ''}.</div>
+            <div className="mt-1 text-xs text-ink">Estimate{sleep8h || proteinDaily ? ' (what-ifs add +10% each)' : ''}.</div>
           </div>
         ) : (
-          <div className="text-sm text-mute">Not enough data in the last 6 weeks for a projection.</div>
+          <div className="text-sm text-ink">Not enough data in the last 6 weeks for a projection.</div>
         )}
       </Card>
     </div>
@@ -118,7 +114,7 @@ export default function Strength() {
 
 function Toggle({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} className={`min-h-11 flex-1 rounded-xl border px-2 text-xs ${on ? 'border-info text-info' : 'border-line text-mute'}`}>
+    <button onClick={onClick} aria-pressed={on} className={`min-h-11 flex-1 border-2 border-ink px-2 font-mono text-xs font-bold uppercase ${on ? 'bg-ink text-page' : 'text-ink'}`}>
       {children}
     </button>
   );

@@ -1,6 +1,5 @@
-import type { ReactElement } from 'react';
+import { useId, type ReactElement } from 'react';
 import type { Muscle } from '../engine/types';
-import { color } from '../theme/tokens';
 
 type Shape = ['e', number, number, number, number] | ['r', number, number, number, number];
 
@@ -28,59 +27,77 @@ const BACK: [Muscle, Shape[]][] = [
   ['calves', [['e', 82, 276, 9, 22], ['e', 118, 276, 9, 22]]],
 ];
 
+const LEVELS = [0, 8, 6, 4.5, 3.2, 2.2]; // hatch spacing per level (0 = no hatch)
+const level = (t: number) => (t <= 0.04 ? 0 : Math.min(5, 1 + Math.floor(Math.min(0.999, t) * 5)));
+
+/** Wireframe diagram figure: hatching density = value (0–1). */
 function Figure({
   regions,
   label,
-  fill,
+  heat,
   onTap,
 }: {
   regions: [Muscle, Shape[]][];
   label: string;
-  fill: (m: Muscle) => string;
+  heat: (m: Muscle) => number;
   onTap?: (m: Muscle) => void;
 }) {
+  const id = useId().replace(/:/g, '');
   const draw = (s: Shape, i: number, f: string): ReactElement =>
     s[0] === 'e' ? (
       <ellipse key={i} cx={s[1]} cy={s[2]} rx={s[3]} ry={s[4]} fill={f} />
     ) : (
-      <rect key={i} x={s[1]} y={s[2]} width={s[3]} height={s[4]} rx={6} fill={f} />
+      <rect key={i} x={s[1]} y={s[2]} width={s[3]} height={s[4]} fill={f} />
     );
   return (
     <div className="flex-1">
-      <svg viewBox="30 0 140 320" className="w-full">
-        {/* silhouette */}
-        <g fill={color.surface} stroke={color.border}>
+      <svg viewBox="30 0 140 320" className="w-full text-ink">
+        <defs>
+          {LEVELS.map((sp, i) =>
+            sp ? (
+              <pattern key={i} id={`${id}h${i}`} width={sp} height={sp} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <line x1="0" y1="0" x2="0" y2={sp} stroke="currentColor" strokeWidth={i === 5 ? 1.6 : 1} />
+              </pattern>
+            ) : null,
+          )}
+        </defs>
+        {/* wireframe silhouette */}
+        <g fill="none" stroke="currentColor" strokeWidth={1.5}>
           <circle cx={100} cy={30} r={17} />
-          <rect x={64} y={58} width={72} height={104} rx={20} />
-          <rect x={44} y={66} width={20} height={110} rx={10} />
-          <rect x={136} y={66} width={20} height={110} rx={10} />
-          <rect x={72} y={155} width={27} height={150} rx={12} />
-          <rect x={101} y={155} width={27} height={150} rx={12} />
+          <rect x={64} y={58} width={72} height={104} />
+          <rect x={44} y={66} width={20} height={110} />
+          <rect x={136} y={66} width={20} height={110} />
+          <rect x={72} y={155} width={27} height={150} />
+          <rect x={101} y={155} width={27} height={150} />
+          <line x1={100} y1={0} x2={100} y2={320} strokeWidth={0.5} strokeDasharray="2 3" />
         </g>
-        {regions.map(([m, shapes]) => (
-          <g
-            key={m}
-            role={onTap ? 'button' : undefined}
-            aria-label={m}
-            onClick={onTap ? () => onTap(m) : undefined}
-            style={{ cursor: onTap ? 'pointer' : undefined }}
-            stroke={color.bg}
-            strokeWidth={1}
-          >
-            {shapes.map((s, i) => draw(s, i, fill(m)))}
-          </g>
-        ))}
+        {regions.map(([m, shapes]) => {
+          const lv = level(heat(m));
+          return (
+            <g
+              key={m}
+              role={onTap ? 'button' : undefined}
+              aria-label={`${m} ${Math.round(heat(m) * 100)}%`}
+              onClick={onTap ? () => onTap(m) : undefined}
+              style={{ cursor: onTap ? 'pointer' : undefined }}
+              stroke="currentColor"
+              strokeWidth={1}
+            >
+              {shapes.map((sh, i) => draw(sh, i, lv ? `url(#${id}h${lv})` : 'transparent'))}
+            </g>
+          );
+        })}
       </svg>
-      <div className="text-center text-xs text-mute">{label}</div>
+      <div className="text-center font-mono text-[10px] font-bold uppercase">{label}</div>
     </div>
   );
 }
 
-export default function BodyMap({ fill, onTap }: { fill: (m: Muscle) => string; onTap?: (m: Muscle) => void }) {
+export default function BodyMap({ heat, onTap }: { heat: (m: Muscle) => number; onTap?: (m: Muscle) => void }) {
   return (
     <div className="flex gap-2">
-      <Figure regions={FRONT} label="Front" fill={fill} onTap={onTap} />
-      <Figure regions={BACK} label="Back" fill={fill} onTap={onTap} />
+      <Figure regions={FRONT} label="Front" heat={heat} onTap={onTap} />
+      <Figure regions={BACK} label="Back" heat={heat} onTap={onTap} />
     </div>
   );
 }

@@ -25,8 +25,8 @@ export function coachContext(
         ({ ex, pe, target }) =>
           `${ex.name} ${ex.equipment === 'bodyweight' ? 'BW' : fmt(target.weight)} × ${pe.repMin}–${pe.repMax}${target.rirCap !== undefined ? ` · stop at ${target.rirCap} RIR` : ''}`,
       ) ?? [],
-    plateaus: plateauAlerts(days, sessions, checkins, today).map((p) => ({ name: exById(p.exerciseId).name, fix: p.fix })),
-    deload: deloadAlert(days, sessions, checkins, today),
+    plateaus: plateauAlerts(days, sessions, checkins, today, { meals, profile, days }).map((p) => ({ name: exById(p.exerciseId).name, fix: p.fix })),
+    deload: deloadAlert(days, sessions, checkins, today, { meals, profile, days }),
     protein: { hit: report.proteinHit, logged: report.daysLogged, target: proteinTarget(profile).protein },
     avgSleep: report.avgSleep,
     insights: report.insights,

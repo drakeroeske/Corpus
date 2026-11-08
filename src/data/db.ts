@@ -7,6 +7,9 @@ import type {
   Crew,
   Experiment,
   FeedPost,
+  Food,
+  SavedMeal,
+  WaterLog,
   GymCheckIn,
   Meal,
   Measurement,
@@ -32,6 +35,9 @@ export const db = new Dexie('corpus-v1') as Dexie & {
   clients: EntityTable<Client, 'id'>;
   coachNotes: EntityTable<CoachNote, 'id'>;
   outbox: EntityTable<OutboxOp, 'id'>;
+  foods: EntityTable<Food, 'id'>;
+  savedMeals: EntityTable<SavedMeal, 'id'>;
+  water: EntityTable<WaterLog, 'date'>;
 };
 
 db.version(1).stores({
@@ -60,10 +66,12 @@ export interface OutboxOp {
 }
 
 db.version(2).stores({ outbox: 'id, time' });
+db.version(3).stores({ foods: 'id, barcode, lastUsed, useCount', savedMeals: 'id', water: 'date' });
 
 export const ALL_TABLES = [
   'profile', 'programDays', 'sessions', 'checkins', 'meals', 'experiments', 'measurements',
   'spotters', 'posts', 'comments', 'crews', 'gymCheckins', 'clients', 'coachNotes',
+  'foods', 'savedMeals', 'water',
 ] as const;
 
 // ---------- Small helpers ----------

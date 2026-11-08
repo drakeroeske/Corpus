@@ -48,6 +48,19 @@ export interface UserProfile {
   liftGoals?: Record<string, number>; // exerciseId → goal e1RM
   sharePosts?: 'all' | 'prs' | 'off'; // what finished workouts post to the feed (default all)
   discoverable?: boolean; // show gym/schedule/split/strength to others for matching (default true)
+  mealNames?: string[]; // diary slot names (default Breakfast, Lunch, Dinner, Snacks)
+  targetOverride?: TargetOverride;
+  usdaKey?: string; // optional USDA FoodData Central API key
+  grain?: 'off' | 'subtle' | 'full'; // photocopy grain overlay (default subtle)
+  pledgeDate?: string; // YYYY-MM-DD the onboarding pledge was signed
+}
+
+export interface TargetOverride {
+  kcal?: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+  pct?: { protein: number; carbs: number; fat: number }; // % of calories, sums to 100
 }
 
 export type Equipment = 'barbell' | 'dumbbell' | 'machine' | 'cable' | 'smith' | 'bodyweight' | 'kettlebell';
@@ -130,6 +143,55 @@ export interface Meal {
   carbs: number;
   fat: number;
   isFavorite: boolean;
+  slot?: number; // 0 breakfast, 1 lunch, 2 dinner, 3 snacks (missing = from time)
+  foodId?: string;
+  qty?: number;
+  unit?: ServingUnit;
+  fiber?: number;
+  sugar?: number;
+  sodium?: number; // mg
+}
+
+export type ServingUnit = 'g' | 'oz' | 'ml' | 'piece' | 'serving';
+
+/** Per-100 g (or ml) nutrient values. Sodium in mg. */
+export interface Nutrients {
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber?: number;
+  sugar?: number;
+  sodium?: number;
+}
+
+export interface Food {
+  id: string;
+  name: string;
+  brand?: string;
+  barcode?: string;
+  source: 'local' | 'off' | 'usda' | 'custom' | 'recipe';
+  per100: Nutrients;
+  servingGrams?: number;
+  servingLabel?: string;
+  pieceGrams?: number;
+  recipe?: { items: { foodId: string; name: string; grams: number }[]; servings: number };
+  useCount: number;
+  lastUsed: number;
+}
+
+export type DiaryItem = Omit<Meal, 'id' | 'date' | 'time' | 'slot' | 'isFavorite'>;
+
+/** A reusable group of diary items ("Meal"). */
+export interface SavedMeal {
+  id: string;
+  name: string;
+  items: DiaryItem[];
+}
+
+export interface WaterLog {
+  date: string;
+  ml: number;
 }
 
 export type ExperimentType = 'creatine' | 'ampm' | 'protein' | 'caffeine' | 'sleep' | 'custom';

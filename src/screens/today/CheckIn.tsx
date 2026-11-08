@@ -7,7 +7,6 @@ import { watchSync } from '../../services/watchSync';
 import type { CheckIn, Experiment, Muscle } from '../../engine';
 import BodyMap from '../../components/BodyMap';
 import { Button, Label, NumberInput, Segmented, Sheet, Stepper } from '../../components/ui';
-import { color, fatigueColor } from '../../theme/tokens';
 
 export default function CheckInSheet() {
   const nav = useNavigate();
@@ -72,16 +71,16 @@ function Form({ date, today, last, exp, done }: { date: string; today?: CheckIn;
 
       <div>
         <Label>Soreness — tap a muscle to raise it (1–5)</Label>
-        <BodyMap onTap={tapMuscle} fill={(m) => ((c.soreness[m] ?? 1) > 1 ? fatigueColor(((c.soreness[m] ?? 1) - 1) / 4) : color.border)} />
-        <div className="mt-2 flex flex-wrap gap-1 text-xs">
+        <BodyMap onTap={tapMuscle} heat={(m) => ((c.soreness[m] ?? 1) - 1) / 4} />
+        <div className="mt-2 flex flex-wrap gap-1 font-mono text-xs uppercase">
           {sore.length ? (
             sore.map(([m, v]) => (
-              <button key={m} className="min-h-8 rounded-full border border-line px-2" onClick={() => set({ soreness: { ...c.soreness, [m]: 1 } })}>
+              <button key={m} className="min-h-11 border-2 border-ink px-2" onClick={() => set({ soreness: { ...c.soreness, [m]: 1 } })}>
                 {m} {v} ×
               </button>
             ))
           ) : (
-            <span className="text-mute">Nothing sore.</span>
+            <span className="text-ink">Nothing sore.</span>
           )}
         </div>
       </div>
@@ -119,11 +118,11 @@ function Form({ date, today, last, exp, done }: { date: string; today?: CheckIn;
         onChange={(e) => set({ notes: e.target.value })}
         placeholder="Notes (optional)"
         rows={2}
-        className="w-full rounded-xl border border-line p-3"
+        className="w-full border-2 border-ink p-3 font-mono"
       />
 
       <Button
-        className="h-14 w-full text-lg"
+        className="min-h-14 w-full text-base"
         onClick={async () => {
           await saveCheckIn(c);
           done();

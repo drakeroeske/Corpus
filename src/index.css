@@ -1,30 +1,135 @@
 @import 'tailwindcss';
 
+/* Riso Lab design system (DESIGN.md). Spot colors are fixed; `ink` and `page` follow the <Surface> sub-style. */
 @theme {
-  --color-bg: #0e0f0c;
-  --color-surface: #1a1b18;
-  --color-line: #2a2c27;
-  --color-ink: #f2f2ee;
-  --color-mute: #a3a69d;
-  --color-lime: #c6f432;
-  --color-warn: #ff6a2b;
-  --color-info: #4da3ff;
-  --font-head: 'Space Grotesk', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --color-paper: #f2f1ec;
+  --color-bone: #ece8df;
+  --color-cobalt: #2b3fd6;
+  --color-cobalt-deep: #1a2a9e;
+  --color-signal: #e9a6d8;
+  --color-black: #111111;
+  --font-mono: 'Space Mono', ui-monospace, monospace;
+  --radius-*: initial;
+}
+
+@theme inline {
+  --color-ink: var(--ink);
+  --color-ink-deep: var(--ink-deep);
+  --color-page: var(--page);
+  --font-display: var(--display);
+}
+
+:root,
+.surface-lab {
+  --ink: #111111;
+  --ink-deep: #000000;
+  --page: #f2f1ec;
+  --display: 'Anton', 'Impact', sans-serif;
+  --display-lh: 0.88;
+  --display-ls: 0;
+}
+
+.surface-riso {
+  --ink: #2b3fd6;
+  --ink-deep: #1a2a9e;
+  --page: #ece8df;
+  --display: 'Archivo Black', 'Arial Black', sans-serif;
+  --display-lh: 0.9;
+  --display-ls: -0.03em;
+}
+
+.surface-lab,
+.surface-riso {
+  background: var(--page);
+  color: var(--ink);
 }
 
 html,
 body {
-  background: var(--color-bg);
-  color: var(--color-ink);
-  font-family: var(--font-head);
+  background: #f2f1ec;
+  color: #111111;
+  font-family: var(--font-mono);
   -webkit-tap-highlight-color: transparent;
+}
+
+* {
+  border-radius: 0 !important;
 }
 
 input,
 textarea,
 select {
   font-size: 16px; /* stops iOS zooming on focus */
-  background: var(--color-bg);
-  color: var(--color-ink);
+  background: transparent;
+  color: var(--ink);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--ink);
+  opacity: 0.55;
+}
+
+/* Display type: Anton (lab) or Archivo Black (riso). */
+.display {
+  font-family: var(--display);
+  line-height: var(--display-lh);
+  letter-spacing: var(--display-ls);
+  text-transform: uppercase;
+}
+
+/* Warning background: 45° 1px ink lines every 6px. */
+.hatch {
+  background-image: repeating-linear-gradient(45deg, var(--ink) 0 1px, transparent 1px 6px);
+}
+
+/* Bar-meter track. */
+.track {
+  border: 1px solid var(--ink);
+  background: transparent;
+}
+
+/* Dashed row dividers for lab tables and spec sheets. */
+.rows > * + * {
+  border-top: 1px dashed var(--ink);
+}
+
+button:disabled {
+  border-style: dashed;
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* Spec sheet (Profile, Coach): label left, value right, dashed rows. */
+.spec > * + * {
+  border-top: 1px dashed var(--ink);
+}
+.spec > div {
+  display: grid;
+  grid-template-columns: 36% minmax(0, 1fr);
+  column-gap: 10px;
+  row-gap: 0;
+  align-items: center;
+  padding: 10px 0;
+}
+.spec > div > :first-child {
+  grid-row: span 6;
+  align-self: start;
+  padding-top: 12px;
+  margin: 0;
+}
+.spec > div > :not(:first-child) {
+  grid-column: 2;
+}
+.spec > div > :not(:first-child) + :not(:first-child) {
+  margin-top: 6px;
+}
+.spec > h3 {
+  padding-bottom: 6px;
 }

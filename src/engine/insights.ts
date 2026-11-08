@@ -12,6 +12,10 @@ export interface InsightInput {
   /** Recent sessions (≈4 weeks): sleep the night before and performance (% e1RM change vs previous). */
   sessionsBySleep: { sleep: number; perf: number }[];
   avgReadiness: number;
+  /** Calorie intake on logged days this week vs target. */
+  kcal?: { logged: number; avg: number; target: number };
+  /** Suggestive pre-workout carb line (only after 4+ weeks of data). */
+  carbTiming?: string | null;
 }
 
 export interface Insights {
@@ -51,6 +55,16 @@ export function weeklyInsights(i: InsightInput): Insights {
     const s = Math.round(avgSleep * 10) / 10;
     out.push(avgSleep < 7 ? `Averaged ${s}h sleep — under the 7h line` : `Averaged ${s}h sleep — recovery is covered`);
   }
+
+  if (i.kcal && i.kcal.logged >= 3) {
+    const d = Math.round(i.kcal.avg - i.kcal.target);
+    out.push(
+      Math.abs(d) <= i.kcal.target * 0.1
+        ? `Calories on target: ${Math.round(i.kcal.avg)} kcal/day average`
+        : `Calories averaged ${Math.abs(d)} kcal/day ${d > 0 ? 'over' : 'under'} target`,
+    );
+  }
+  if (i.carbTiming) out.push(i.carbTiming);
 
   if (i.sessionsPlanned > 0) out.push(`Hit ${i.sessionsDone} of ${i.sessionsPlanned} planned sessions`);
   if (i.plateaued.length) out.push(`${i.plateaued.join(', ')} plateaued: no e1RM gain in 3 sessions`);

@@ -30,20 +30,20 @@ export default function AiCoachChat() {
 
   return (
     <div>
-      <PageHeader title="AI Coach" back sub="Answers built from your own data. Simulated for now." />
+      <PageHeader title="AI Coach" section="COACH" back sub="Answers built from your own data. Simulated for now." />
       <div className="space-y-3">
         {msgs.map((m, i) => (
-          <div key={i} className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${m.from === 'me' ? 'ml-auto bg-lime text-bg' : 'border border-line bg-surface'}`}>
+          <div key={i} className={`max-w-[85%] border-2 border-ink px-4 py-3 font-mono text-sm ${m.from === 'me' ? 'ml-auto bg-ink text-page' : 'bg-page'}`}>
             {m.text}
           </div>
         ))}
-        {busy && <div className="text-sm text-mute">Thinking…</div>}
+        {busy && <div className="font-mono text-xs uppercase">[COMPUTING…]</div>}
         <div ref={end} />
       </div>
       {!msgs.length && (
         <div className="mt-2 flex flex-wrap gap-2">
           {SUGGESTIONS.map((s) => (
-            <button key={s} className="min-h-11 rounded-xl border border-line px-3 text-sm" onClick={() => ask(s)}>
+            <button key={s} className="min-h-11 border-2 border-ink px-3 text-left font-mono text-xs uppercase" onClick={() => ask(s)}>
               {s}
             </button>
           ))}

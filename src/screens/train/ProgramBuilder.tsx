@@ -19,8 +19,8 @@ export function ProgramList() {
       <div className="space-y-2">
         {days.map((d) => (
           <Card key={d.id} onClick={() => nav(`/train/program/${d.id}`)}>
-            <div className="font-bold">{d.name}</div>
-            <div className="text-sm text-mute">
+            <div className="font-bold uppercase">{d.name}</div>
+            <div className="text-sm text-ink">
               {weekdayLabel(d.weekdays)} · {d.exercises.map((e) => exById(e.exerciseId).name).join(', ') || 'No exercises'}
             </div>
           </Card>
@@ -31,14 +31,14 @@ export function ProgramList() {
       </div>
 
       <div>
-        <h2 className="mb-2 text-lg font-bold">Start from a template</h2>
+        <h2 className="display mb-2 text-4xl">Start from a template.</h2>
         <div className="space-y-2">
           {TEMPLATES.map((t) => (
             <Card key={t.id}>
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <div className="font-bold">{t.name}</div>
-                  <div className="text-sm text-mute">{t.description}</div>
+                  <div className="font-bold uppercase">{t.name}</div>
+                  <div className="text-sm text-ink">{t.description}</div>
                 </div>
                 <Button
                   variant="ghost"
@@ -101,7 +101,7 @@ export function DayEditor() {
               <button
                 key={i}
                 onClick={() => update({ ...day, weekdays: on ? day.weekdays.filter((x) => x !== i) : [...day.weekdays, i] })}
-                className={`min-h-11 flex-1 rounded-lg border ${on ? 'border-lime bg-lime font-bold text-bg' : 'border-line'}`}
+                className={`min-h-11 flex-1 border-2 ${on ? 'border-ink bg-ink font-bold text-page' : 'border-ink'}`}
               >
                 {l}
               </button>
@@ -115,16 +115,16 @@ export function DayEditor() {
         return (
           <Card key={`${pe.exerciseId}-${i}`}>
             <div className="mb-2 flex items-center justify-between gap-2">
-              <div className="font-bold">{ex.name}</div>
+              <div className="font-bold uppercase">{ex.name}</div>
               <div className="flex shrink-0">
-                <button className="min-h-11 min-w-11 text-mute" aria-label="Move up" onClick={() => move(i, -1)}>
+                <button className="min-h-11 min-w-11 text-ink" aria-label="Move up" onClick={() => move(i, -1)}>
                   ↑
                 </button>
-                <button className="min-h-11 min-w-11 text-mute" aria-label="Move down" onClick={() => move(i, 1)}>
+                <button className="min-h-11 min-w-11 text-ink" aria-label="Move down" onClick={() => move(i, 1)}>
                   ↓
                 </button>
                 <button
-                  className="min-h-11 min-w-11 text-warn"
+                  className="min-h-11 min-w-11 text-ink font-bold"
                   aria-label="Remove"
                   onClick={() => update({ ...day, exercises: day.exercises.filter((_, j) => j !== i) })}
                 >
@@ -196,11 +196,11 @@ export function ExercisePicker({ onPick, onClose }: { onPick: (id: string) => vo
   return (
     <Sheet title="Exercise library" onClose={onClose}>
       <TextInput autoFocus placeholder="Search name, muscle or equipment" value={q} onChange={(e) => setQ(e.target.value)} />
-      <div className="mt-3 divide-y divide-line">
+      <div className="mt-3 divide-y divide-ink divide-dashed">
         {list.map((e) => (
           <button key={e.id} className="flex min-h-12 w-full items-center justify-between py-2 text-left" onClick={() => onPick(e.id)}>
             <span>{e.name}</span>
-            <span className="text-xs text-mute">
+            <span className="text-xs text-ink">
               {e.equipment} · {e.primaryMuscles.join(', ')}
             </span>
           </button>

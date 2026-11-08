@@ -19,6 +19,12 @@ import {
   mean,
   plateauFix,
   weeklySets,
+  applyTargetOverride,
+  bigDeficit,
+  kcalBalance,
+  sumNutrients,
+  type Nutrients,
+  type TdeeDay,
   type PlateauFix,
   type BreakPhase,
   type CheckIn,
@@ -129,11 +135,50 @@ export function fatigueSets(sessions: WorkoutSession[], excludeSessionId?: strin
   return out;
 }
 
+/** Engine targets for the day, with the user's overrides applied. */
 export function proteinTarget(profile: UserProfile, trainingDay = true) {
+  return applyTargetOverride(engineTargets(profile, trainingDay), profile.targetOverride);
+}
+
+export function engineTargets(profile: UserProfile, trainingDay = true) {
   return nutritionTargets(
     { weightKg: toKg(profile.bodyWeight, profile.units), heightCm: profile.heightCm, age: profile.age, sex: profile.sex, goal: profile.goal },
     trainingDay,
   );
+}
+
+/** Logged totals per date. */
+export function dailyIntake(meals: Meal[]): Map<string, Nutrients> {
+  const by = new Map<string, Meal[]>();
+  for (const m of meals) by.set(m.date, [...(by.get(m.date) ?? []), m]);
+  return new Map([...by].map(([d, ms]) => [d, sumNutrients(ms)]));
+}
+
+export interface FuelCtx {
+  meals: Meal[];
+  profile: UserProfile;
+  days: ProgramDay[];
+}
+
+/** Average logged intake minus target over the n days ending today (null if < 3 logged). */
+export function calorieBalance(f: FuelCtx, today: string, n = 14): number | null {
+  const totals = dailyIntake(f.meals.filter((m) => m.date > addDays(today, -n) && m.date <= today));
+  return kcalBalance(
+    Array.from({ length: n }, (_, i) => {
+      const d = addDays(today, -i);
+      return { kcal: totals.get(d)?.kcal ?? 0, target: proteinTarget(f.profile, !!dayForDate(f.days, d)).kcal };
+    }),
+  );
+}
+
+/** Intake + morning weight (kg) per day, for adaptive TDEE. */
+export function tdeeDays(meals: Meal[], checkins: CheckIn[], units: UserProfile['units']): TdeeDay[] {
+  const totals = dailyIntake(meals);
+  const dates = new Set([...totals.keys(), ...checkins.filter((c) => c.bodyWeight !== undefined).map((c) => c.date)]);
+  return [...dates].sort().map((date) => {
+    const c = checkins.find((x) => x.date === date);
+    return { date, kcal: totals.get(date)?.kcal, weightKg: c?.bodyWeight !== undefined ? toKg(c.bodyWeight, units) : undefined };
+  });
 }
 
 /** True only if meals were logged for `date` and protein came in under target. */
@@ -144,8 +189,16 @@ export function proteinMissed(meals: Meal[], date: string, profile: UserProfile)
 }
 
 export function currentFatigue(sessions: WorkoutSession[], checkin: CheckIn | undefined, meals: Meal[], profile: UserProfile, today: string, now: number, excludeSessionId?: string) {
-  const hl = halfLifeHours(checkin?.sleepHours, proteinMissed(meals, addDays(today, -1), profile));
+  const y = addDays(today, -1);
+  const yKcal = meals.filter((m) => m.date === y).reduce((a, m) => a + m.kcal, 0);
+  const hl = halfLifeHours(checkin?.sleepHours, proteinMissed(meals, y, profile), bigDeficit(yKcal, proteinTarget(profile).kcal));
   return { halfLife: hl, units: muscleFatigue(fatigueSets(sessions, excludeSessionId), now, hl) };
+}
+
+/** 1-based session number in chronological order (SESSION 041). */
+export function sessionNumber(sessions: WorkoutSession[], id: string): number {
+  const sorted = [...sessions].sort((a, b) => a.date.localeCompare(b.date) || a.startedAt - b.startedAt);
+  return sorted.findIndex((s) => s.id === id) + 1;
 }
 
 // ---------- Session stats ----------
@@ -230,11 +283,12 @@ export function strengthChangePct(sessions: WorkoutSession[], from: string, to: 
   return changes.length ? changes.reduce((a, b) => a + b, 0) / changes.length : 0;
 }
 
-export function bodyComp(checkins: CheckIn[], sessions: WorkoutSession[], today: string) {
+export function bodyComp(checkins: CheckIn[], sessions: WorkoutSession[], today: string, fuel?: FuelCtx) {
   const from = addDays(today, -13);
   return bodyCompSignal(
     bodyWeightSeries(checkins).filter((w) => w.date >= from && w.date <= today),
     strengthChangePct(sessions, from, today),
+    fuel ? calorieBalance(fuel, today) : null,
   );
 }
 
@@ -243,22 +297,24 @@ export interface PlateauAlert {
   fix: PlateauFix;
 }
 
-export function plateauAlerts(days: ProgramDay[], sessions: WorkoutSession[], checkins: CheckIn[], today: string): PlateauAlert[] {
+export function plateauAlerts(days: ProgramDay[], sessions: WorkoutSession[], checkins: CheckIn[], today: string, fuel?: FuelCtx): PlateauAlert[] {
   const ids = [...new Set(days.flatMap((d) => d.exercises.map((e) => e.exerciseId)))];
   const avgR = mean(readinessSeries(checkins, days, today, 7).map((r) => r.score));
   const weekly = weeklySetsFor(sessions, today);
   const falling = bodyComp(checkins, sessions, today).weightRatePctPerWeek < -0.1;
+  const bal = fuel ? calorieBalance(fuel, today) : null;
+  const eatingUnder = bal !== null && bal < -150;
   return ids
     .filter((id) => isPlateau(e1rmSeries(sessions, id).map((p) => p.e1rm)))
     .map((id) => {
       const primary = exById(id).primaryMuscles[0];
-      return { exerciseId: id, fix: plateauFix({ avgReadiness7d: avgR, weeklySetsPrimary: primary ? weekly[primary] : 0, bodyWeightFalling: falling }) };
+      return { exerciseId: id, fix: plateauFix({ avgReadiness7d: avgR, weeklySetsPrimary: primary ? weekly[primary] : 0, bodyWeightFalling: falling, eatingUnder }) };
     });
 }
 
-export function deloadAlert(days: ProgramDay[], sessions: WorkoutSession[], checkins: CheckIn[], today: string) {
+export function deloadAlert(days: ProgramDay[], sessions: WorkoutSession[], checkins: CheckIn[], today: string, fuel?: FuelCtx) {
   const series = readinessSeries(checkins, days, today, 14).map((r) => r.score);
-  return deloadCheck(series, plateauAlerts(days, sessions, checkins, today).length);
+  return deloadCheck(series, plateauAlerts(days, sessions, checkins, today, fuel).length);
 }
 
 /** Best e1RM per session for an exercise, oldest first. */

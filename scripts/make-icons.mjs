@@ -22,29 +22,55 @@ const chunk = (type, data) => {
   return Buffer.concat([len, td, crc]);
 };
 
-function icon(size) {
-  const bg = [0x0e, 0x0f, 0x0c];
-  const lime = [0xc6, 0xf4, 0x32];
+// Connected-C mark (same geometry as src/components/diagrams logoGeometry) in cobalt on bone.
+function logo() {
+  const nodes = Array.from({ length: 7 }, (_, i) => {
+    const a = ((50 + (i * 260) / 6) * Math.PI) / 180;
+    return [50 + 36 * Math.cos(a), 50 - 36 * Math.sin(a)];
+  });
+  const hub = [50, 50];
+  const links = [];
+  for (let i = 0; i < nodes.length - 1; i++) links.push([nodes[i], nodes[i + 1]]);
+  for (const i of [0, 2, 4, 6]) links.push([hub, nodes[i]]);
+  return { nodes, hub, links };
+}
+
+const segDist = (px, py, [ax, ay], [bx, by]) => {
+  const dx = bx - ax, dy = by - ay;
+  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+};
+
+function icon(size, height = size, scale = 1 - 2 * 0.16) {
+  const bone = [0xec, 0xe8, 0xdf];
+  const cobalt = [0x2b, 0x3f, 0xd6];
+  const g = logo();
+  // scale = share of the width the mark fills (0.68 leaves the maskable safe zone)
+  const k = (size * scale) / 100;
+  const off = (size - size * scale) / 2;
+  const offY = (height - size * scale) / 2;
   const rows = [];
-  const c = size / 2;
-  const rOut = size * 0.34;
-  const rIn = size * 0.2;
-  for (let y = 0; y < size; y++) {
+  for (let y = 0; y < height; y++) {
     const row = [0];
     for (let x = 0; x < size; x++) {
-      const dx = x + 0.5 - c;
-      const dy = y + 0.5 - c;
-      const d = Math.hypot(dx, dy);
-      const ang = (Math.atan2(dy, dx) * 180) / Math.PI;
-      const ring = d <= rOut && d >= rIn && Math.abs(ang) > 40; // a "C" with a gap on the right
-      const dot = Math.abs(dx - size * 0.24) < size * 0.06 && Math.abs(dy) < size * 0.06; // square accent in the gap
-      row.push(...(ring || dot ? lime : bg));
+      // 2x2 supersampling for smooth edges
+      let hit = 0;
+      for (const [sx, sy] of [[0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]]) {
+        const u = (x + sx - off) / k;
+        const v = (y + sy - offY) / k;
+        let on = g.links.some((l) => segDist(u, v, l[0], l[1]) <= 2.5);
+        on ||= g.nodes.some(([nx, ny]) => Math.abs(u - nx) <= 6 && Math.abs(v - ny) <= 6);
+        on ||= Math.abs(u - g.hub[0]) <= 9 && Math.abs(v - g.hub[1]) <= 9;
+        if (on) hit++;
+      }
+      const t = hit / 4;
+      row.push(...bone.map((c, i) => Math.round(c + (cobalt[i] - c) * t)));
     }
     rows.push(Buffer.from(row));
   }
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(size, 0);
-  ihdr.writeUInt32BE(size, 4);
+  ihdr.writeUInt32BE(height, 4);
   ihdr[8] = 8; // bit depth
   ihdr[9] = 2; // RGB
   return Buffer.concat([
@@ -57,4 +83,6 @@ function icon(size) {
 
 mkdirSync('public', { recursive: true });
 for (const s of [180, 192, 512]) writeFileSync(`public/icon-${s}.png`, icon(s));
+// iOS launch screen: mark on bone, portrait.
+writeFileSync('public/splash.png', icon(1170, 2532, 0.32));
 console.log('icons written');

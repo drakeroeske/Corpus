@@ -9,9 +9,9 @@ export interface FatigueSet {
   secondary: Muscle[];
 }
 
-/** 60h if last sleep < 6h or protein target missed; 36h if last sleep ≥ 7.5h; otherwise 48h. */
-export function halfLifeHours(lastSleep: number | undefined, proteinMissed: boolean): number {
-  if (proteinMissed || (lastSleep !== undefined && lastSleep < 6)) return 60;
+/** 60h if last sleep < 6h, protein target missed or a big calorie deficit; 36h if last sleep ≥ 7.5h; otherwise 48h. */
+export function halfLifeHours(lastSleep: number | undefined, proteinMissed: boolean, bigDeficit = false): number {
+  if (proteinMissed || bigDeficit || (lastSleep !== undefined && lastSleep < 6)) return 60;
   if (lastSleep !== undefined && lastSleep >= 7.5) return 36;
   return 48;
 }

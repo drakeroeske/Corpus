@@ -36,13 +36,7 @@ src/
 
 ## Design system
 
-- Background `#0E0F0C`, surface `#1A1B18`, border `#2A2C27`, text `#F2F2EE`, muted `#A3A69D`
-- Accent lime `#C6F432`, warning orange `#FF6A2B`, info blue `#4DA3FF`
-- Fonts: Space Grotesk (UI/headings), JetBrains Mono (all numbers)
-- Lab-instrument feel: clean, data-dense, minimal. No emoji, no gradients
-- Tap targets ≥ 44px, one-handed use mid-workout
-- Mobile-first at 390px; usable on desktop (centered max-width 480px column)
-- Bottom tabs: **Today · Train · Body · Spotters · Profile**
+Replaced in Milestone 12 by **DESIGN.md** ("Riso Lab"): paper/bone, black and cobalt ink, pink signal, Anton / Archivo Black / Space Mono, square corners, grain. DESIGN.md is the source of truth for all visual decisions.
 
 ---
 
@@ -197,3 +191,78 @@ Quick-add meals (kcal/P/C/F), favorites for one-tap repeat, daily totals vs targ
 9. **Demo data + onboarding + PWA + README** (run locally, deploy free to Vercel, add to iPhone home screen)
 
 v1 = all 9 milestones done. If time runs short, milestones 1–5 are the must-haves.
+
+10. **Fuel** — full nutrition system (section below)
+11. **Thermal Body** — 3D rotatable heat-map body (section below)
+12. **Riso Lab redesign** — see DESIGN.md
+
+---
+
+## Milestone 10 — Fuel (full nutrition system)
+
+A food diary in the style of MyFitnessPal, built on OPEN data only. Never scrape or copy MyFitnessPal's database, API or assets.
+
+### Food data
+- Open Food Facts API (free, no key, CORS-enabled): text search + barcode lookup. Map to per-100g and per-serving kcal, protein, carbs, fat, fiber, sugar, sodium.
+- USDA FoodData Central (optional, free API key entered in Settings): generic whole foods. If no key, skip it silently.
+- Bundled starter list of ~150 common generic foods (src/data/foods.json) so search works offline and with no key.
+- Cache every selected food in Dexie; recent and frequent foods load instantly.
+- All lookups go through a foodSource interface in src/services/ so a paid database can replace it later.
+
+### Diary
+- Day view split into Breakfast, Lunch, Dinner, Snacks (renamable); date switcher.
+- Add food: search ranked recent → frequent → local → Open Food Facts; barcode scan; Quick Add (kcal/macros only); Custom Food.
+- Serving picker: unit (g, oz, ml, piece, product serving) + typed quantity on the number keypad; macros recalculate live.
+- One-tap: copy yesterday's meal, copy a whole day, save a meal as a reusable "Meal".
+- Recipes: combine foods, set servings, log by serving.
+- Water tracker (tap +250 ml / 8 oz, or typed amount).
+- Swipe or long-press to edit/delete.
+
+### Barcode scanning
+- Camera scan with @zxing/browser (works on iPhone Safari). Not found → offer to create a custom food with that barcode.
+
+### Targets & engine integration
+- Targets come from the engine; user can override kcal and each macro, or set macros by % of calories.
+- Adaptive TDEE: after 14+ days of weight + intake logs, estimate maintenance: TDEE ≈ avgIntake − (weightTrendPerDay × 7700 kcal/kg), smoothed weekly. Show "Estimated maintenance: X kcal (confidence: low/medium/high)" and suggest updating targets. Pure function in src/engine/ with tests.
+- Protein adherence and calorie balance feed the existing engine: fatigue decay, plateau fixes, body-comp signal, Weekly Lab Report insights.
+- Pre-workout carb timing insight after 4+ weeks of data, labeled as suggestive.
+
+### Screens
+- Fuel view replaces the basic nutrition section: rings (kcal, protein, carbs, fat), diary, water.
+- Nutrition trends inside Body: 7/30-day averages, adherence calendar, macro split chart, adaptive TDEE chart.
+
+### Demo data
+8 weeks of realistic diary entries (repeated staples, some missed-protein days) consistent with the demo user's weight trend.
+
+---
+
+## Milestone 11 — Thermal Body (3D fatigue heat map)
+
+Replaces the 2D fatigue map on the Body screen with a rotatable 3D body that looks like a thermal camera image. Keep the 2D map as fallback.
+
+### Tech
+- three + @react-three/fiber + @react-three/drei
+- Lazy-load the 3D view (React.lazy)
+- No WebGL or low-power device → fall back to the 2D map
+
+### The body
+- Stylized procedural mannequin from primitives (capsules, spheres, rounded boxes), ~30 meshes, each named after a muscle group, with separate front/back meshes where needed (chest vs upper back; front/side/rear delts). Athletic proportions, smooth shading. No downloaded model files.
+- Behind a BodyModel interface mapping mesh names → muscle IDs, so a licensed GLB anatomy model can be swapped in later.
+
+### Thermal look
+- Per-muscle material colored by fatigue 0–100% on a thermal palette: 0% #0B1A3A → 25% #4B2C8C → 50% #C2306B → 75% #FF6A2B → 100% #FFE86B.
+- Fresnel rim glow; emissive intensity rises with fatigue.
+- Color changes lerp over ~600 ms.
+- Muscles above 60% fatigue pulse slowly.
+- Dark background with a faint floor grid or radial glow.
+
+### Interaction
+- Drag to rotate (vertical axis, slight tilt, clamped), pinch/scroll zoom with limits, gentle idle auto-rotate that stops on touch.
+- Front · Back · Side snap buttons (animated).
+- Tap a muscle → highlight + card: name, fatigue %, last trained (date + sets), estimated recovered time, recommendation (Ready / Train light / Rest).
+- Toggle: Fatigue (default) · Weekly volume (sets vs 10–20 target) · Readiness-adjusted.
+- Thermal gradient legend 0–100% with "Recovered" / "Fatigued" labels.
+- List-view toggle with the same data as text (accessibility).
+
+### Performance
+- Target 60 fps on a recent iPhone; small geometry; no post-processing on mobile (bloom on desktop only if cheap).

@@ -9,3 +9,5 @@ export * from './insights';
 export * from './experiments';
 export * from './social';
 export * from './coach';
+export * from './fuel';
+export * from './thermal';

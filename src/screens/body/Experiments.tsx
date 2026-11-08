@@ -15,6 +15,7 @@ import {
   type WorkoutSession,
 } from '../../engine';
 import { Button, Card, Label, Segmented, TextInput, prettyDate } from '../../components/ui';
+import { Grain, Tag, pad3 } from '../../components/riso';
 
 export default function Experiments() {
   const data = useData();
@@ -24,6 +25,7 @@ export default function Experiments() {
   const today = todayKey();
   const active = exps.find((e) => e.status === 'baseline' || e.status === 'testing');
   const past = exps.filter((e) => e !== active);
+  const num = (e: Experiment) => pad3([...exps].sort((a, b) => a.startDate.localeCompare(b.startDate)).indexOf(e) + 1);
 
   const start = async (t: (typeof EXPERIMENT_TEMPLATES)[number]) => {
     const name = t.type === 'custom' ? custom.name || t.name : t.name;
@@ -34,16 +36,16 @@ export default function Experiments() {
   return (
     <div className="space-y-4">
       {active ? (
-        <ActiveExperiment e={active} data={data} today={today} />
+        <ActiveExperiment e={active} no={num(active)} data={data} today={today} />
       ) : (
         <>
-          <p className="text-sm text-mute">Test one change on yourself: 14 days of baseline, then 28 days with the change and a daily yes/no.</p>
+          <p className="font-mono text-xs uppercase">Test one change on yourself: 14 days of baseline, then 28 days with the change and a daily yes/no.</p>
           {EXPERIMENT_TEMPLATES.map((t) => (
             <Card key={t.type}>
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="font-bold">{t.name}</div>
-                  <div className="text-sm text-mute">{t.question}</div>
+                  <div className="font-mono text-sm font-bold uppercase">{t.name}</div>
+                  <div className="font-mono text-xs">{t.question}</div>
                 </div>
                 <Button variant="ghost" onClick={() => start(t)}>
                   Start
@@ -59,13 +61,14 @@ export default function Experiments() {
           ))}
         </>
       )}
-      {past.length > 0 && <h2 className="pt-2 text-lg font-bold">Past experiments</h2>}
+      {past.length > 0 && <h2 className="display pt-2 text-4xl">Past experiments.</h2>}
       {past.map((e) => (
         <Card key={e.id}>
-          <div className="font-bold">{e.name}</div>
-          <div className="mb-2 text-sm text-mute">
-            {prettyDate(e.startDate)} · {e.status}
+          <div className="flex justify-between font-mono text-[10px] font-bold uppercase">
+            <span>EXP Nº {num(e)}</span>
+            <span>{prettyDate(e.startDate)} · [{e.status.toUpperCase()}]</span>
           </div>
+          <div className="display mt-1 mb-2 text-3xl">{e.name}.</div>
           <ReportView e={e} data={data} today={today} />
         </Card>
       ))}
@@ -75,7 +78,7 @@ export default function Experiments() {
 
 type Data = { days: ProgramDay[]; sessions: WorkoutSession[]; checkins: CheckIn[] };
 
-function ActiveExperiment({ e, data, today }: { e: Experiment; data: Data; today: string }) {
+function ActiveExperiment({ e, no, data, today }: { e: Experiment; no: string; data: Data; today: string }) {
   const ph = experimentPhase(e, today);
   const ci = data.checkins.find((c) => c.date === today);
 
@@ -86,14 +89,18 @@ function ActiveExperiment({ e, data, today }: { e: Experiment; data: Data; today
   }, [ph.phase, e.id, e.status]);
 
   return (
-    <Card className="space-y-3 border-lime/60">
-      <div>
-        <div className="text-xs uppercase tracking-wide text-mute">{ph.phase === 'baseline' ? 'Baseline' : 'Testing'} · day {ph.day} of {ph.totalDays}</div>
-        <div className="text-lg font-bold">{e.name}</div>
-        <div className="mt-2 h-2 rounded bg-line">
-          <div className="h-2 rounded bg-lime" style={{ width: `${(ph.day / ph.totalDays) * 100}%` }} />
+    <Card className="space-y-3">
+      <Grain />
+      <div className="relative">
+        <div className="flex justify-between font-mono text-[10px] font-bold uppercase">
+          <span>EXP Nº {no}</span>
+          <span>[{ph.phase === 'baseline' ? 'BASELINE' : 'TESTING'}] Day {ph.day} / {ph.totalDays}</span>
         </div>
-        <div className="mt-1 text-xs text-mute">
+        <div className="display mt-2 text-4xl">{e.name}.</div>
+        <div className="track mt-2 h-2.5">
+          <div className="h-full bg-ink" style={{ width: `${(ph.day / ph.totalDays) * 100}%` }} />
+        </div>
+        <div className="mt-1 font-mono text-xs uppercase">
           {ph.phase === 'baseline' ? `Live as normal. Test starts ${prettyDate(ph.testStart)}.` : 'Answer the daily question in your check-in or here.'}
         </div>
       </div>
@@ -124,7 +131,7 @@ function ReportView({ e, data, today }: { e: Experiment; data: Data; today: stri
   const ph = experimentPhase(e, today);
   const baseEnd = addDays(ph.testStart, -1);
   const testEnd = ph.phase === 'done' ? addDays(ph.testStart, e.lengthDays - 1) : today;
-  if (daysBetween(ph.testStart, testEnd) < 0) return <p className="text-sm text-mute">Stopped before the test started.</p>;
+  if (daysBetween(ph.testStart, testEnd) < 0) return <p className="text-sm text-ink">Stopped before the test started.</p>;
   const testDays = daysBetween(ph.testStart, testEnd) + 1;
 
   const rd = (from: string, to: string) =>
@@ -148,28 +155,29 @@ function ReportView({ e, data, today }: { e: Experiment; data: Data; today: stri
 
   return (
     <div className="space-y-2">
-      <table className="w-full text-sm">
+      <table className="w-full border-t-[3px] border-ink font-mono text-sm">
         <thead>
-          <tr className="text-xs text-mute">
-            <th className="text-left font-normal" />
-            <th className="text-right font-normal">Baseline</th>
-            <th className="text-right font-normal">Test</th>
+          <tr className="border-b border-ink text-[10px] uppercase">
+            <th className="text-left font-bold">Measure</th>
+            <th className="text-right font-bold">Baseline</th>
+            <th className="text-right font-bold">Test</th>
           </tr>
         </thead>
-        <tbody className="font-mono">
+        <tbody>
           {r.rows.map((row) => (
-            <tr key={row.label}>
-              <td className="py-1 font-head">{row.label}</td>
+            <tr key={row.label} className="border-t border-dashed border-ink first:border-t-0">
+              <td className="py-1 text-xs uppercase">{row.label}</td>
               <td className="text-right">{Number.isFinite(row.baseline) ? `${row.baseline}${row.unit}` : '–'}</td>
               <td className="text-right">{Number.isFinite(row.test) ? `${row.test}${row.unit}` : '–'}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      <div className="text-sm">{r.summary}</div>
-      <div className="text-xs text-mute">
-        Adherence {Math.round(r.adherence * 100)}% ({flags.length} answers) · <span className={r.confidence === 'low' ? 'text-warn' : 'text-info'}>{r.confidenceLabel}</span>
+      <div className="font-mono text-sm">{r.summary}</div>
+      <div className="font-mono text-xs uppercase">
+        Adherence {Math.round(r.adherence * 100)}% ({flags.length} answers) <Tag>CONFIDENCE: {r.confidence.toUpperCase()}</Tag>
       </div>
+      <div className="font-mono text-[10px]">{r.confidenceLabel}</div>
     </div>
   );
 }

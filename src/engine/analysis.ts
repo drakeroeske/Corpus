@@ -13,10 +13,10 @@ export function isPlateau(e1rms: number[]): boolean {
 
 export type PlateauFix = 'deload' | 'add a set' | 'raise calories ~200' | 'change rep range or variation';
 
-export function plateauFix(p: { avgReadiness7d: number; weeklySetsPrimary: number; bodyWeightFalling: boolean }): PlateauFix {
+export function plateauFix(p: { avgReadiness7d: number; weeklySetsPrimary: number; bodyWeightFalling: boolean; eatingUnder?: boolean }): PlateauFix {
   if (p.avgReadiness7d < 60) return 'deload';
   if (p.weeklySetsPrimary < 10) return 'add a set';
-  if (p.bodyWeightFalling) return 'raise calories ~200';
+  if (p.bodyWeightFalling || p.eatingUnder) return 'raise calories ~200';
   return 'change rep range or variation';
 }
 
@@ -84,8 +84,19 @@ export interface BodyCompSignal {
 /**
  * @param weights body weights from the last 14 days
  * @param strengthChangePct average e1RM change over the same 14 days, in %
+ * @param kcalBalance average logged intake minus target (kcal/day), if known
  */
-export function bodyCompSignal(weights: { date: string; value: number }[], strengthChangePct: number): BodyCompSignal {
+export function bodyCompSignal(weights: { date: string; value: number }[], strengthChangePct: number, kcalBalance: number | null = null): BodyCompSignal {
+  const s = bodyCompBase(weights, strengthChangePct);
+  if (kcalBalance === null) return s;
+  if (s.label === 'Likely gaining fat' && kcalBalance > 150)
+    return { ...s, suggestion: `You average ${kcalBalance} kcal over target: cut ~200 kcal/day.` };
+  if (s.label === 'Muscle-loss risk' && kcalBalance < -300)
+    return { ...s, suggestion: `You average ${-kcalBalance} kcal under target: add ~200–300 kcal/day and keep protein at 2.2 g/kg.` };
+  return s;
+}
+
+function bodyCompBase(weights: { date: string; value: number }[], strengthChangePct: number): BodyCompSignal {
   const fit = linreg(weights.map((w) => ({ x: dayNum(w.date), y: w.value })));
   if (weights.length < 4 || !fit) {
     return { label: 'Not enough data', suggestion: 'Log body weight most mornings for 2 weeks.', weightRatePctPerWeek: 0 };
